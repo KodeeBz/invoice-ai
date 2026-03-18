@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  password     String     // bcrypt hashed, never plain text
+  name         String
+  businessName String?
+  businessLogo String?    // URL to uploaded logo
+  address      String?
+  phone        String?
+  taxNumber    String?
+  currency     String     @default("USD")
+  defaultTaxRate Float    @default(0)
+  defaultPaymentTerms String @default("Payment due within 30 days. Thank you for your business.")
+  defaultDueDays Int      @default(30)
+  aiContext     String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  invoices     Invoice[]
+  proposals    Proposal[]
+  clients      Client[]
+}
+
+model Client {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  phone     String?
+  company   String?
+  address   String?
+  notes     String?
+  deletedAt DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  invoices  Invoice[]
+  proposals Proposal[]
+}
+
+model Invoice {
+  id             String     @id @default(cuid())
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId       String
+  client         Client     @relation(fields: [clientId], references: [id])
+  publicToken    String     @unique @default(cuid())
+  invoiceNumber  String     // e.g. INV-2024-001
+  status         String     @default("DRAFT") // DRAFT | SENT | VIEWED | PAID | OVERDUE | CANCELLED
+  issueDate      DateTime
+  dueDate        DateTime
+  lineItems      LineItem[]
+  subtotal       Float
+  taxRate        Float      @default(0)
+  taxAmount      Float      @default(0)
+  discountType   String?    // "percentage" or "fixed"
+  discountValue  Float      @default(0)
+  discountAmount Float      @default(0)
+  total          Float
+  notes          String?    // payment terms, thank you note, etc.
+  pdfUrl         String?    // URL to generated PDF stored in cloud
+  aiGenerated    Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([userId, invoiceNumber])
+}
+
+model Proposal {
+  id             String            @id @default(cuid())
+  userId         String
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId       String
+  client         Client            @relation(fields: [clientId], references: [id])
+  publicToken    String            @unique @default(cuid())
+  proposalNumber String            // e.g. PROP-2024-001
+  status         String            @default("DRAFT") // DRAFT | SENT | VIEWED | ACCEPTED | REJECTED | EXPIRED
+  title          String
+  validUntil     DateTime
+  sections       ProposalSection[]
+  total          Float
+  pdfUrl         String?
+  aiGenerated    Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([userId, proposalNumber])
+}
+
+model LineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float
+  unitPrice   Float
+  total       Float
+  order       Int     @default(0) // for drag-to-reorder
+}
+
+model ProposalSection {
+  id         String   @id @default(cuid())
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  title      String   // e.g. "Executive Summary", "Scope of Work"
+  content    String   // rich text / markdown
+  order      Int      @default(0)
+}
